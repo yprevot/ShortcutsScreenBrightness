@@ -83,18 +83,26 @@ python src/main.py
 
 ---
 
-## 🏗️ Compilar a Ejecutable Autónomo (.exe)
+## 🏗️ Compilación y Creación de Instaladores
 
-Si deseas empaquetar la aplicación en un archivo `.exe` para distribuirlo o usarlo sin requerir Python instalado:
+### Opción A: Compilar ejecutable portátil (.exe)
 
-1. Ejecuta el script de compilación incluido:
+Para generar una versión ejecutable sin necesidad de tener Python instalado:
+```cmd
+build.bat
+```
+El binario ejecutable se guardará en `dist/ShortcutsScreenBrightness/ShortcutsScreenBrightness.exe`.
+
+### Opción B: Generar el Instalador de Windows (.exe Setup)
+
+El proyecto incluye scripts automáticos para empaquetar un instalador nativo tipo *"Siguiente ➔ Siguiente ➔ Instalar"* usando **Inno Setup**:
+
+1. Descarga e instala [Inno Setup](https://jrsoftware.org/isdl.php) (gratuito).
+2. Ejecuta el script de empaquetado:
    ```cmd
-   build.bat
+   make_installer.bat
    ```
-2. El binario ejecutable resultante se guardará en:
-   📁 `dist/ShortcutsScreenBrightness/ShortcutsScreenBrightness.exe`
-
-Puedes copiar esta carpeta a cualquier PC con Windows y ejecutar la aplicación directamente.
+3. El instalador resultante se guardará en `Output/ShortcutsScreenBrightness_Setup_v1.0.0.exe`.
 
 ---
 
@@ -126,6 +134,9 @@ ShortcutsScreenBrightness/
 │   └── config.py         # Gestión de preferencias e inicio automático
 ├── install.bat           # Script de instalación automática de dependencias
 ├── build.bat             # Script de compilación a ejecutable (.exe)
+├── make_installer.bat    # Script de automatización de instalador Inno Setup
+├── installer.iss         # Definición de paquete Inno Setup
+├── LICENSE               # Licencia MIT oficial
 ├── requirements.txt      # Archivo de dependencias de Python
 ├── .gitignore            # Exclusión de archivos de build y temporales
 └── README.md             # Documentación oficial del proyecto
