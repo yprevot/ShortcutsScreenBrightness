@@ -14,6 +14,8 @@ Estrategia anti-delay (debounce + worker unico):
 import threading
 from typing import Optional, List, Dict
 
+from i18n import t
+
 DEBOUNCE_MS = 80
 
 
@@ -73,10 +75,7 @@ class BrightnessController:
             from monitorcontrol import get_monitors
             raw_monitors = list(get_monitors())
             if not raw_monitors:
-                self._error_msg = (
-                    "No se encontraron monitores.\n"
-                    "Verifica: OSD del monitor -> Setup -> DDC/CI = On"
-                )
+                self._error_msg = t("ddc_error_osd")
                 print(f"[BrightnessCtrl] {self._error_msg}")
                 return
 
@@ -106,7 +105,7 @@ class BrightnessController:
                         print(f"[BrightnessCtrl] Monitor {idx}: '{name}' DDC/CI OK -- {brightness}%")
 
                 except Exception as e:
-                    info = MonitorInfo(idx, f"Monitor {idx + 1} (sin DDC/CI)", 0, ddc_ok=False)
+                    info = MonitorInfo(idx, f"Monitor {idx + 1}", 0, ddc_ok=False)
                     self.monitors.append(info)
                     print(f"[BrightnessCtrl] Monitor {idx}: DDC/CI no responde ({e})")
 
@@ -124,10 +123,7 @@ class BrightnessController:
                     # Multiples: empezar con "Todos"
                     self.target_index = TARGET_ALL
             else:
-                self._error_msg = (
-                    "Ningun monitor respondio a DDC/CI.\n"
-                    "Verifica DDC/CI = On en el OSD de cada monitor."
-                )
+                self._error_msg = t("ddc_error_generic")
                 print(f"[BrightnessCtrl] {self._error_msg}")
 
         except ImportError:

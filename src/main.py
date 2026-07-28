@@ -7,6 +7,11 @@ import os
 import socket
 import threading
 import tkinter as tk
+from config import Config
+from brightness_ctrl import BrightnessController
+from tray_app import TrayApp
+from hotkeys import HotkeyManager
+from i18n import t
 
 # ── Instancia única ──────────────────────────────────────────────────────────
 def _ensure_single_instance() -> socket.socket:
@@ -26,9 +31,8 @@ def _ensure_single_instance() -> socket.socket:
             root.withdraw()
             from tkinter import messagebox
             messagebox.showinfo(
-                "ShortcutsScreenBrightness",
-                "ShortcutsScreenBrightness ya está en ejecución.\n"
-                "Busca el ícono ☀ en la barra de tareas."
+                t("already_running_title"),
+                t("already_running_msg")
             )
             root.destroy()
         except Exception:

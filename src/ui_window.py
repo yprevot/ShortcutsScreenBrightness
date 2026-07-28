@@ -20,6 +20,7 @@ except ImportError:
     CTK_AVAILABLE = False
 
 from brightness_ctrl import TARGET_ALL
+from i18n import t, set_language_mode, get_language_mode
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  Paleta de colores dual (Dark / Light)
@@ -196,7 +197,7 @@ class OSDNotification:
 class BrightnessWindow:
     """Ventana flotante de control de brillo con tema sincronizado y selector de monitor."""
 
-    WIN_W, WIN_H = 320, 560
+    WIN_W, WIN_H = 320, 580
     TASKBAR_H = 52
 
     def __init__(self, root: tk.Tk, brightness_ctrl, config, quit_callback: Callable):
@@ -206,6 +207,18 @@ class BrightnessWindow:
         self.quit_callback = quit_callback
         self.visible = False
         self._focus_timer = None
+        self.tray_app = None
+
+        # Arrastre de ventana
+        self._drag_x = 0
+        self._drag_y = 0
+
+        # Cargar preferencia de idioma guardada (por defecto 'es')
+        saved_lang = self.config.get("language", "es")
+        if saved_lang not in ("es", "en"):
+            saved_lang = "es"
+        set_language_mode(saved_lang)
+
         self.T = _get_theme()  # Tema actual
 
         if CTK_AVAILABLE:
@@ -215,6 +228,20 @@ class BrightnessWindow:
             self._build_ctk()
         else:
             self._build_tk()
+
+    def set_tray_app(self, tray_app):
+        self.tray_app = tray_app
+
+    def _start_drag(self, event):
+        """Registra la posición del mouse al iniciar el arrastre de la ventana."""
+        self._drag_x = event.x
+        self._drag_y = event.y
+
+    def _do_drag(self, event):
+        """Mueve la ventana según la posición del mouse."""
+        x = self.win.winfo_x() + (event.x - self._drag_x)
+        y = self.win.winfo_y() + (event.y - self._drag_y)
+        self.win.geometry(f"+{x}+{y}")
 
     # ── Constructor CTK ──────────────────────────────────────────────────────
     def _build_ctk(self):
@@ -234,32 +261,74 @@ class BrightnessWindow:
         card.pack(fill="both", expand=True, padx=6, pady=6)
         self._card = card
 
-        # ── Header ───────────────────────────────────────────────────────────
+        # ── Header (Zona de arrastre principal) ──────────────────────────────
         hdr = ctk.CTkFrame(card, fg_color=T["bg_card"])
         hdr.pack(fill="x", padx=18, pady=(16, 0))
+
+        # El arrastre se vincula ÚNICAMENTE al encabezado
+        hdr.bind("<ButtonPress-1>", self._start_drag)
+        hdr.bind("<B1-Motion>", self._do_drag)
 
         self.sun_cv = tk.Canvas(hdr, width=42, height=42,
                                 bg=T["bg_card"], highlightthickness=0)
         self.sun_cv.pack(side="left")
+        self.sun_cv.bind("<ButtonPress-1>", self._start_drag)
+        self.sun_cv.bind("<B1-Motion>", self._do_drag)
         self._draw_sun(50)
 
         info = ctk.CTkFrame(hdr, fg_color=T["bg_card"])
-        info.pack(side="left", padx=(10, 0))
+        info.pack(side="left", padx=(8, 0))
+        info.bind("<ButtonPress-1>", self._start_drag)
+        info.bind("<B1-Motion>", self._do_drag)
 
-        ctk.CTkLabel(info, text="ShortcutsScreenBrightness",
-                     font=ctk.CTkFont("Segoe UI", 14, "bold"),
-                     text_color=T["text_pri"]).pack(anchor="w")
+        title_lbl = ctk.CTkLabel(info, text="ShortcutsScreenBrightness",
+                                 font=ctk.CTkFont("Segoe UI", 12, "bold"),
+                                 text_color=T["text_pri"])
+        title_lbl.pack(anchor="w")
+        title_lbl.bind("<ButtonPress-1>", self._start_drag)
+        title_lbl.bind("<B1-Motion>", self._do_drag)
 
         self.status_lbl = ctk.CTkLabel(info, text="DDC/CI",
                                         font=ctk.CTkFont("Segoe UI", 11),
                                         text_color=T["text_sec"])
         self.status_lbl.pack(anchor="w")
+        self.status_lbl.bind("<ButtonPress-1>", self._start_drag)
+        self.status_lbl.bind("<B1-Motion>", self._do_drag)
 
-        ctk.CTkButton(hdr, text="✕", width=30, height=30,
+        # Botón cerrar (X)
+        ctk.CTkButton(hdr, text="✕", width=28, height=28,
                        fg_color=T["bg_card"], hover_color=T["bg_surface"],
                        text_color=T["text_sec"], font=ctk.CTkFont("Segoe UI", 13),
-                       corner_radius=15, command=self.hide
-                       ).pack(side="right")
+                       corner_radius=14, command=self.hide
+                       ).pack(side="right", padx=(4, 0))
+
+        # Selector de idioma limpio con dos botones pill [ ES ] [ EN ]
+        lang_fr = ctk.CTkFrame(hdr, fg_color=T["bg_surface"], corner_radius=12)
+        lang_fr.pack(side="right", padx=(0, 4))
+
+        self.btn_lang_es = ctk.CTkButton(
+            lang_fr,
+            text="ES",
+            width=32,
+            height=26,
+            corner_radius=10,
+            font=ctk.CTkFont("Segoe UI", 11, "bold"),
+            command=lambda: self._on_language_change("ES")
+        )
+        self.btn_lang_es.pack(side="left", padx=2, pady=2)
+
+        self.btn_lang_en = ctk.CTkButton(
+            lang_fr,
+            text="EN",
+            width=32,
+            height=26,
+            corner_radius=10,
+            font=ctk.CTkFont("Segoe UI", 11, "bold"),
+            command=lambda: self._on_language_change("EN")
+        )
+        self.btn_lang_en.pack(side="left", padx=(0, 2), pady=2)
+
+        self._update_lang_buttons_style()
 
         # ── Selector de monitores ────────────────────────────────────────────
         mon_fr = ctk.CTkFrame(card, fg_color=T["bg_surface"], corner_radius=10)
@@ -267,9 +336,10 @@ class BrightnessWindow:
 
         mon_hdr = ctk.CTkFrame(mon_fr, fg_color=T["bg_surface"])
         mon_hdr.pack(fill="x", padx=12, pady=(8, 4))
-        ctk.CTkLabel(mon_hdr, text="Monitores",
-                     font=ctk.CTkFont("Segoe UI", 11, "bold"),
-                     text_color=T["text_sec"]).pack(side="left")
+        self.monitors_hdr_lbl = ctk.CTkLabel(mon_hdr, text=t("monitors_section"),
+                                             font=ctk.CTkFont("Segoe UI", 11, "bold"),
+                                             text_color=T["text_sec"])
+        self.monitors_hdr_lbl.pack(side="left")
 
         # Scrollable frame para la lista de monitores
         self._monitor_btns = []
@@ -287,7 +357,7 @@ class BrightnessWindow:
                                      text_color=T["accent"])
         self.pct_lbl.pack()
 
-        self.desc_lbl = ctk.CTkLabel(pct_fr, text="Brillo del monitor",
+        self.desc_lbl = ctk.CTkLabel(pct_fr, text=t("brightness_label"),
                                       font=ctk.CTkFont("Segoe UI", 12),
                                       text_color=T["text_sec"])
         self.desc_lbl.pack()
@@ -347,43 +417,48 @@ class BrightnessWindow:
         hk_fr = ctk.CTkFrame(card, fg_color=T["bg_surface"], corner_radius=10)
         hk_fr.pack(fill="x", padx=18, pady=(12, 0))
 
-        for keys, desc in [("Ctrl+Alt  ↑↓", "±6 brillo"),
-                            ("Ctrl+Alt  →←", "±1 brillo")]:
+        self.hk_desc_lbls = []
+        for keys, desc in [("Ctrl+Alt  ↑↓", t("hk_step_large")),
+                            ("Ctrl+Alt  →←", t("hk_step_small"))]:
             row = ctk.CTkFrame(hk_fr, fg_color=T["bg_surface"])
             row.pack(fill="x", padx=12, pady=4)
             ctk.CTkLabel(row, text=keys,
                          font=ctk.CTkFont("Segoe UI", 11, "bold"),
                          text_color=T["accent"]).pack(side="left")
-            ctk.CTkLabel(row, text=desc,
-                         font=ctk.CTkFont("Segoe UI", 11),
-                         text_color=T["text_sec"]).pack(side="right")
+            desc_lbl = ctk.CTkLabel(row, text=desc,
+                                     font=ctk.CTkFont("Segoe UI", 11),
+                                     text_color=T["text_sec"])
+            desc_lbl.pack(side="right")
+            self.hk_desc_lbls.append(desc_lbl)
 
         # ── Footer ───────────────────────────────────────────────────────────
         ft_fr = ctk.CTkFrame(card, fg_color=T["bg_card"])
-        ft_fr.pack(fill="x", padx=18, pady=(12, 14))
+        ft_fr.pack(fill="x", padx=18, pady=(14, 18))
 
         self.startup_var = tk.BooleanVar(value=self.config.is_startup_enabled())
-        ctk.CTkSwitch(ft_fr, text="Iniciar con Windows",
-                       variable=self.startup_var,
-                       font=ctk.CTkFont("Segoe UI", 12),
-                       text_color=T["text_sec"],
-                       button_color=T["accent"],
-                       button_hover_color=T["accent2"],
-                       progress_color=T["accent"],
-                       onvalue=True, offvalue=False,
-                       command=self._toggle_startup
-                       ).pack(side="left")
+        self.startup_switch = ctk.CTkSwitch(ft_fr, text=t("startup_switch"),
+                                             variable=self.startup_var,
+                                             font=ctk.CTkFont("Segoe UI", 12),
+                                             text_color=T["text_sec"],
+                                             button_color=T["accent"],
+                                             button_hover_color=T["accent2"],
+                                             progress_color=T["accent"],
+                                             onvalue=True, offvalue=False,
+                                             command=self._toggle_startup
+                                             )
+        self.startup_switch.pack(side="left")
 
-        ctk.CTkButton(ft_fr, text="Salir", width=64, height=28,
-                       fg_color=T["bg_card"], hover_color=T["quit_hover"],
-                       text_color=T["text_sec"], font=ctk.CTkFont("Segoe UI", 11),
-                       corner_radius=8,
-                       command=self._quit
-                       ).pack(side="right")
+        self.exit_btn = ctk.CTkButton(ft_fr, text=t("exit_btn"), width=64, height=28,
+                                       fg_color=T["bg_card"], hover_color=T["quit_hover"],
+                                       text_color=T["text_sec"], font=ctk.CTkFont("Segoe UI", 11),
+                                       corner_radius=8,
+                                       command=self._quit
+                                       )
+        self.exit_btn.pack(side="right")
 
         # Estado DDC/CI
         if not self.brightness_ctrl.is_available:
-            self.status_lbl.configure(text="DDC/CI no disponible", text_color=T["error"])
+            self.status_lbl.configure(text=t("status_ddc_error"), text_color=T["error"])
 
         self.win.bind("<FocusOut>", self._on_focus_out)
 
@@ -400,7 +475,7 @@ class BrightnessWindow:
         all_mons = bc.monitors
 
         if not all_mons:
-            lbl = ctk.CTkLabel(self._monitor_list_fr, text="Sin monitores detectados",
+            lbl = ctk.CTkLabel(self._monitor_list_fr, text=t("no_monitors_found"),
                                font=ctk.CTkFont("Segoe UI", 11),
                                text_color=T["text_dim"])
             lbl.pack(fill="x", pady=2)
@@ -412,7 +487,7 @@ class BrightnessWindow:
             is_active = bc.target_index == TARGET_ALL
             btn = ctk.CTkButton(
                 self._monitor_list_fr,
-                text=f"🖥  Todos los monitores ({len(ddc)})",
+                text=t("all_monitors", count=len(ddc)),
                 height=32,
                 fg_color=T["monitor_act"] if is_active else T["bg_surface"],
                 hover_color=T["monitor_sel"],
@@ -429,7 +504,7 @@ class BrightnessWindow:
             is_active = bc.target_index == mi.index
             ddc_ok = mi.ddc_ok
             icon = "🟢" if ddc_ok else "🔴"
-            suffix = f"  {mi.brightness}%" if ddc_ok else "  (sin DDC/CI)"
+            suffix = f"  {mi.brightness}%" if ddc_ok else t("no_ddc_suffix")
 
             btn = ctk.CTkButton(
                 self._monitor_list_fr,
@@ -457,12 +532,73 @@ class BrightnessWindow:
         T = self.T
         if index == TARGET_ALL:
             n = len(self.brightness_ctrl.ddc_monitors)
-            self.status_lbl.configure(text=f"Todos ({n} monitores)", text_color=T["text_sec"])
+            self.status_lbl.configure(text=f"DDC/CI ({n})", text_color=T["text_sec"])
         else:
             for mi in self.brightness_ctrl.monitors:
                 if mi.index == index:
                     self.status_lbl.configure(text=f"{mi.name}  ·  DDC/CI", text_color=T["text_sec"])
                     break
+
+    def _on_language_change(self, selected_str: str):
+        """Callback cuando el usuario cambia la opción en el selector de idioma."""
+        mode_map = {"ES": "es", "EN": "en"}
+        mode = mode_map.get(selected_str, "es")
+        self.config.set("language", mode)
+        set_language_mode(mode)
+        self._update_lang_buttons_style()
+        self._retranslate_ui()
+        if self.tray_app:
+            self.tray_app.update_tray_menu()
+
+    def _update_lang_buttons_style(self):
+        """Actualiza visualmente el estado resaltado de los botones de idioma."""
+        if not CTK_AVAILABLE or not hasattr(self, "btn_lang_es"):
+            return
+
+        T = self.T
+        current_mode = get_language_mode()
+
+        if current_mode == "es":
+            self.btn_lang_es.configure(
+                fg_color=T["accent"],
+                text_color=T["bg_root"],
+                hover_color=T["accent2"]
+            )
+            self.btn_lang_en.configure(
+                fg_color=T["bg_surface"],
+                text_color=T["text_sec"],
+                hover_color=T["bg_hover"]
+            )
+        else:
+            self.btn_lang_es.configure(
+                fg_color=T["bg_surface"],
+                text_color=T["text_sec"],
+                hover_color=T["bg_hover"]
+            )
+            self.btn_lang_en.configure(
+                fg_color=T["accent"],
+                text_color=T["bg_root"],
+                hover_color=T["accent2"]
+            )
+
+    def _retranslate_ui(self):
+        """Actualiza dinámicamente los textos traducibles de la UI."""
+        if not CTK_AVAILABLE:
+            return
+
+        self.monitors_hdr_lbl.configure(text=t("monitors_section"))
+        self.desc_lbl.configure(text=t("brightness_label"))
+        self.startup_switch.configure(text=t("startup_switch"))
+        self.exit_btn.configure(text=t("exit_btn"))
+
+        if len(self.hk_desc_lbls) >= 2:
+            self.hk_desc_lbls[0].configure(text=t("hk_step_large"))
+            self.hk_desc_lbls[1].configure(text=t("hk_step_small"))
+
+        if not self.brightness_ctrl.is_available:
+            self.status_lbl.configure(text=t("status_ddc_error"))
+
+        self._build_monitor_list()
 
     # ── Fallback TK puro ─────────────────────────────────────────────────────
     def _build_tk(self):

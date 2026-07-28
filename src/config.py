@@ -26,6 +26,7 @@ class Config:
         "last_brightness": 50,
         "step_large":      6,
         "step_small":      1,
+        "language":        "es",
     }
 
     def __init__(self):

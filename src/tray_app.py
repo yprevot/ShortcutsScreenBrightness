@@ -12,6 +12,7 @@ from pystray import MenuItem as Item, Menu
 
 from icon_maker import make_tray_icon
 from ui_window import BrightnessWindow, OSDNotification
+from i18n import t
 
 
 class TrayApp:
@@ -35,6 +36,7 @@ class TrayApp:
             root, brightness_ctrl, config,
             quit_callback=self._do_quit
         )
+        self.ui_window.set_tray_app(self)
 
         # Crear ícono de pystray
         self._build_icon()
@@ -44,27 +46,27 @@ class TrayApp:
         self._icon = pystray.Icon(
             name    = self.APP_NAME,
             icon    = make_tray_icon(self.brightness_ctrl.current),
-            title   = f"{self.APP_TOOLTIP}  |  {self.brightness_ctrl.current}%",
+            title   = f"{t('app_tooltip')}  |  {self.brightness_ctrl.current}%",
             menu    = self._build_menu(),
         )
 
     def _build_menu(self) -> Menu:
         return Menu(
             Item(
-                lambda item: f"Brillo:  {self.brightness_ctrl.current}%",
+                lambda item: f"{t('tray_brightness')}:  {self.brightness_ctrl.current}%",
                 action  = None,
                 enabled = False,
             ),
             Menu.SEPARATOR,
-            Item("⚙  Abrir control de brillo", self._open_window, default=True),
+            Item(t("tray_open"), self._open_window, default=True),
             Menu.SEPARATOR,
             Item(
-                "▶  Iniciar con Windows",
+                t("tray_autostart"),
                 action  = self._toggle_startup,
                 checked = lambda item: self.config.is_startup_enabled(),
             ),
             Menu.SEPARATOR,
-            Item("✕  Salir", self._quit_from_menu),
+            Item(t("tray_exit"), self._quit_from_menu),
         )
 
     # ── Callbacks del menú ───────────────────────────────────────────────────
@@ -78,6 +80,18 @@ class TrayApp:
         # Actualizar el check del menú
         if self._icon:
             self._icon.update_menu()
+
+    def update_tray_menu(self):
+        """Actualiza los textos traducidos del menú de la bandeja."""
+        def _do():
+            try:
+                if self._icon:
+                    self._icon.title = f"{t('app_tooltip')}  |  {self.brightness_ctrl.current}%"
+                    self._icon.menu = self._build_menu()
+                    self._icon.update_menu()
+            except Exception as e:
+                print(f"[TrayApp] Error actualizando menú: {e}")
+        threading.Thread(target=_do, daemon=True).start()
 
     def _quit_from_menu(self, icon=None, item=None):
         self._icon.stop()
