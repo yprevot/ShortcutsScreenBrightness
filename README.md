@@ -15,82 +15,120 @@ Una aplicación ligera, elegante y moderna para la bandeja del sistema de Window
 - 🔄 **Sincronización en Tiempo Real**: Al deslizar la barra de brillo o presionar hotkeys, el valor del monitor y de la lista se actualiza instantáneamente en el mismo milisegundo.
 - 🌐 **Multilingüe Automático y Selector de Idioma (ES / EN)**:
   - Detecta automáticamente el idioma de la interfaz del sistema operativo Windows (`GetUserDefaultUILanguage`).
-  - Incluye un selector desplegable en la aplicación para alternar entre **Español (ES)** e **Inglés (EN)** en tiempo real.
-  - Sincroniza dinámicamente tanto los elementos visuales de la ventana como el menú contextual del **System Tray**.
-- 🖐️ **Ventana Flotante Arrastrable (Window Dragging)**: Haz clic y arrastra libremente la aplicación a cualquier pantalla o posición del monitor. Los controles de brillo (slider y botones) están aislados para no mover la ventana al usarlos.
-- 🎨 **Tema Adaptativo de Sistema (Dark / Light Mode)**: Paleta de colores HSL que detecta y se adapta automáticamente al tema claro u oscuro de Windows (`darkdetect`).
-- ⚡ **Arquitectura Anti-Delay (Debounced I/O)**: Respuesta de interfaz a 0ms mediante caché local, enviando comandos DDC/CI al hardware tras 80ms de inactividad para proteger los monitores.
+  - Selector desplegable para alternar entre **Español (ES)** e **Inglés (EN)** en tiempo real.
+  - Sincroniza dinámicamente tanto la ventana como el menú contextual del **System Tray**.
+- 🖐️ **Ventana Flotante Arrastrable (Window Dragging)**: Haz clic y arrastra libremente la aplicación a cualquier pantalla o posición del monitor con aislamiento inteligente de controles.
+- 🎨 **Tema Adaptativo de Sistema (Dark / Light Mode)**: Paleta de colores HSL que se adapta automáticamente al tema claro u oscuro de Windows (`darkdetect`).
+- ⚡ **Arquitectura Anti-Delay (Debounced I/O)**: Respuesta de interfaz a 0ms mediante caché local, enviando comandos DDC/CI al hardware tras 80ms de inactividad.
 - ⌨️ **Atajos de Teclado Globales**:
   - `Ctrl + Alt + Flecha Arriba` ➔ Incrementar brillo (+6%)
   - `Ctrl + Alt + Flecha Abajo` ➔ Disminuir brillo (-6%)
   - `Ctrl + Alt + Flecha Derecha` ➔ Incrementar brillo (+1%)
   - `Ctrl + Alt + Flecha Izquierda` ➔ Disminuir brillo (-1%)
 - 🔔 **Notificación OSD Flotante**: Indicador visual discreto sobre la pantalla al ajustar el brillo con el teclado.
-- 📌 **Integración en la Bandeja del Sistema**: Ícono en la barra de tareas con menú traducible al instante.
+- 📌 **Integración en la Bandeja del Sistema**: Ícono en la barra de tareas con menú traducible.
 - ⚙️ **Inicio Automático con Windows**: Registro en el arranque del sistema.
+
+---
+
+## 💻 Guía de Ejecución en Entorno Local (Desarrollo)
+
+Sigue estos pasos para clonar, instalar y ejecutar **ShortcutsScreenBrightness** en tu computadora local.
+
+### 📋 Requisitos Previos
+
+- **Sistema Operativo**: Windows 10, Windows 11 (compatible también con Windows 7 y 8).
+- **Python**: Versión 3.9 o superior. Puedes descargarlo desde [python.org](https://www.python.org/downloads/). *(Asegúrate de marcar la casilla "Add Python to PATH" durante la instalación)*.
+
+---
+
+### 🚀 Pasos para Ejecutar Localmente
+
+#### 1. Clonar el Repositorio
+Abre la consola de comandos (PowerShell / CMD) y ejecuta:
+```bash
+git clone https://github.com/yprevot/ShortcutsScreenBrightness.git
+cd ShortcutsScreenBrightness
+```
+
+#### 2. Crear un Entorno Virtual (Opcional pero Recomendado)
+Para mantener limpias las dependencias de tu sistema:
+```bash
+# Crear entorno virtual .venv
+python -m venv .venv
+
+# Activar el entorno virtual en Windows
+.venv\Scripts\activate
+```
+
+#### 3. Instalar Dependencias del Proyecto
+Puedes instalar las librerías necesarias con el script automático o mediante pip:
+
+- **Opción A (Script Automático)**:
+  ```cmd
+  install.bat
+  ```
+- **Opción B (Comando Pip)**:
+  ```bash
+  pip install -r requirements.txt
+  ```
+
+#### 4. Ejecutar la Aplicación en Modo Local
+Una vez instaladas las dependencias, inicia la aplicación ejecutando:
+```bash
+python src/main.py
+```
+- La aplicación creará un **ícono en la bandeja del sistema (junto al reloj de Windows)**.
+- Haz clic en el ícono de la bandeja o presiona `Ctrl + Alt + Flecha Arriba/Abajo` para abrir el panel flotante de control.
+
+---
+
+## 🏗️ Compilar a Ejecutable Autónomo (.exe)
+
+Si deseas empaquetar la aplicación en un archivo `.exe` para distribuirlo o usarlo sin requerir Python instalado:
+
+1. Ejecuta el script de compilación incluido:
+   ```cmd
+   build.bat
+   ```
+2. El binario ejecutable resultante se guardará en:
+   📁 `dist/ShortcutsScreenBrightness/ShortcutsScreenBrightness.exe`
+
+Puedes copiar esta carpeta a cualquier PC con Windows y ejecutar la aplicación directamente.
 
 ---
 
 ## 🌐 Compatibilidad de Monitores y Marcas
 
-**ShortcutsScreenBrightness** es compatible con prácticamente cualquier monitor del mercado (Titan Army, Dell, LG, ASUS, Acer, Samsung, BenQ, AOC, ViewSonic, Gigabyte, etc.).
+**ShortcutsScreenBrightness** funciona con monitores externos de cualquier marca (Titan Army, Dell, LG, ASUS, Acer, Samsung, BenQ, AOC, ViewSonic, Gigabyte, etc.).
 
 ### Requisitos de Hardware:
 1. **DDC/CI Activado en el OSD del Monitor**:
    - En el menú físico de tu monitor, comprueba que **DDC/CI** esté en **Activado / On**.
 2. **Conexión Compatible**:
    - **DisplayPort / HDMI / DVI / VGA**: Soporte nativo de DDC/CI.
-   - **USB-C / Thunderbolt**: Requiere cable/puerto compatible con **DisplayPort Alt Mode**.
+   - **USB-C / Thunderbolt**: Requiere cable o puerto compatible con **DisplayPort Alt Mode**.
 
 ---
 
-## 🛠️ Instalación y Ejecución
-
-### Opción 1: Ejecutar desde el código fuente (Python)
-
-1. Clonar el repositorio:
-   ```bash
-   git clone https://github.com/yprevot/ShortcutsScreenBrightness.git
-   cd ShortcutsScreenBrightness
-   ```
-2. Instalar dependencias:
-   ```bash
-   pip install -r requirements.txt
-   ```
-   *(O ejecutando `install.bat`)*
-
-3. Iniciar la aplicación:
-   ```bash
-   python src/main.py
-   ```
-
-### Opción 2: Compilar Ejecutable `.exe`
-
-Para generar una versión ejecutable sin necesidad de tener Python instalado:
-```cmd
-build.bat
-```
-El ejecutable binario se generará en la carpeta `dist/ShortcutsScreenBrightness/ShortcutsScreenBrightness.exe`.
-
----
-
-## 📦 Estructura del Código
+## 📦 Estructura del Proyecto
 
 ```
 ShortcutsScreenBrightness/
 ├── src/
 │   ├── main.py           # Punto de entrada y prevención de instancias duplicadas
-│   ├── i18n.py           # Diccionarios y motor de traducción multilingüe (ES / EN)
-│   ├── ui_window.py      # Interfaz gráfica CustomTkinter + OSD + Arrastre de ventana
-│   ├── brightness_ctrl.py# Controlador DDC/CI multi-monitor, lector EDID y debouncing
-│   ├── hotkeys.py        # Captura de atajos globales del teclado
-│   ├── tray_app.py       # Menú e ícono dinámico en la bandeja del sistema
-│   ├── icon_maker.py     # Generación dinámica del ícono de bandeja
+│   ├── i18n.py           # Motor de traducción e internacionalización (ES / EN)
+│   ├── ui_window.py      # Interfaz gráfica CustomTkinter, OSD y arrastre de ventana
+│   ├── brightness_ctrl.py# Controlador DDC/CI, lector EDID y debouncing
+│   ├── hotkeys.py        # Captura de atajos globales de teclado
+│   ├── tray_app.py       # Menú e ícono en la bandeja del sistema
+│   ├── icon_maker.py     # Generador dinámico de íconos de bandeja
 │   └── config.py         # Gestión de preferencias e inicio automático
-├── install.bat           # Instalador automático de entorno
-├── build.bat             # Compilador de ejecutable PyInstaller
-├── requirements.txt      # Dependencias del proyecto
-└── README.md             # Documentación oficial
+├── install.bat           # Script de instalación automática de dependencias
+├── build.bat             # Script de compilación a ejecutable (.exe)
+├── requirements.txt      # Archivo de dependencias de Python
+├── .gitignore            # Exclusión de archivos de build y temporales
+└── README.md             # Documentación oficial del proyecto
 ```
 
 ---

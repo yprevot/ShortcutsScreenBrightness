@@ -1,9 +1,9 @@
 @echo off
 chcp 65001 >nul
 echo.
-echo  ╔══════════════════════════════════════════════════════════╗
-echo  ║   ShortcutsScreenBrightness — Compilar a .exe standalone ║
-echo  ╚════════════════════════════════════════════════════════════════╝
+echo  ==============================================================
+echo     ShortcutsScreenBrightness - Compilar a .exe standalone
+echo  ==============================================================
 echo.
 
 :: 1. Verificar PyInstaller
@@ -29,17 +29,7 @@ echo.
 echo  Compilando ShortcutsScreenBrightness.exe...
 echo.
 
-pyinstaller ^
-    --noconfirm ^
-    --onedir ^
-    --windowed ^
-    --name "ShortcutsScreenBrightness" ^
-    --icon "assets\icon.ico" ^
-    --add-data "assets;assets" ^
-    --collect-all "customtkinter" ^
-    --collect-all "darkdetect" ^
-    --clean ^
-    src\main.py
+pyinstaller --noconfirm --onedir --windowed --name "ShortcutsScreenBrightness" --icon "assets\icon.ico" --collect-all "customtkinter" --collect-all "darkdetect" --clean src\main.py
 
 if %errorlevel% neq 0 (
     echo.
@@ -49,18 +39,9 @@ if %errorlevel% neq 0 (
 )
 
 echo.
-echo  ╔════════════════════════════════════════════════════════════════╗
-echo  ║   [OK] Compilacion completada con exito.                        ║
-echo  ║   Ejecutable en:                                               ║
-echo  ║   dist\ShortcutsScreenBrightness\ShortcutsScreenBrightness.exe ║
-echo  ╚════════════════════════════════════════════════════════════════╝
-echo  [OK] Compilación exitosa.
+echo  ==============================================================
+echo   [OK] Compilacion completada con exito.
+echo   Ejecutable en:
+echo   dist\ShortcutsScreenBrightness\ShortcutsScreenBrightness.exe
+echo  ==============================================================
 echo.
-echo  El ejecutable está en:
-echo     dist\ShortcutsScreenBrightness\ShortcutsScreenBrightness.exe
-echo.
-echo  Puedes moverlo a cualquier carpeta y ejecutarlo
-echo  directamente sin necesitar Python instalado.
-echo  ═══════════════════════════════════════════════════
-echo.
-pause

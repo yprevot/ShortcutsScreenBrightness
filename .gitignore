@@ -1,52 +1,27 @@
-# Byte-compiled / optimized / DLL files
+# Byte-compiled / Python cache
 __pycache__/
 *.py[cod]
 *$py.class
-
-# C extensions
 *.so
 
-# Distribution / packaging
+# PyInstaller & Build Outputs
 build/
-develop-eggs/
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# PyInstaller
-*.manifest
 *.spec
+*.manifest
 
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
+# Temporary Scratch & Test Scripts
+scratch/
+*.log
 
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.pydevproject
-.hypothesis/
+# App user config files & local state
+.shortcutsscreenbrightness.json
+*.json.bak
 
-# Environments
+# Generated assets
+assets/*.ico
+
+# Environments (Virtual Environments)
 .env
 .venv
 env/
@@ -55,13 +30,17 @@ ENV/
 env.bak/
 venv.bak/
 
-# IDE / Editors
+# IDE / Editor configuration
 .vscode/
 .idea/
 *.swp
 *.swo
+*.user
+*.suo
 
-# MSIX & Packaging temporary files
+# Packaging & MSIX artifacts
 msix_package/
 *.msix
 *.msixupload
+*.appx
+*.appxbundle
