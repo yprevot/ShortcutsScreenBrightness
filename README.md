@@ -149,10 +149,17 @@ ShortcutsScreenBrightness/
 Este proyecto está bajo la Licencia MIT. Consulta el archivo [LICENSE](LICENSE) para más detalles.
 
 ## Imágenes de la app
-<img width="124" height="127" alt="{7E398D3E-BAB1-4554-9561-55EBD115669A}" src="https://github.com/user-attachments/assets/9f9f9fac-8d9f-43d2-ad37-8ecef3d33bed" />
 <img width="611" height="1040" alt="{2B704DAE-323B-497A-98DD-B9773AB70BA6}" src="https://github.com/user-attachments/assets/39338eb3-c2f1-48bb-980a-ed8aa126b55e" />
 <img width="713" height="1109" alt="{6AFCFD17-FD51-4E0F-9D03-70728DE3098D}" src="https://github.com/user-attachments/assets/55ce6a14-1901-41cd-bfb0-a8533aff2896" />
 <img width="649" height="1083" alt="{DEFBB34B-26B8-4556-BB79-3D8B4DE82E8F}" src="https://github.com/user-attachments/assets/080e6947-3c27-4fa9-a809-bb7fca575ba2" />
+<img width="475" height="387" alt="{67A0DB11-C774-4D15-8203-0E66BCA1E3E5}" src="https://github.com/user-attachments/assets/28c712e1-48b2-4126-a19a-ea7fde3384d5" />
+<img width="865" height="528" alt="{97AEF64C-F105-41C3-99D8-48BCC045FE31}" src="https://github.com/user-attachments/assets/09760ce1-5fd7-4106-b571-7b996e327eb9" />
+<img width="805" height="459" alt="{F91F5D5A-3524-41FB-8C4E-B6B06DBC1ADD}" src="https://github.com/user-attachments/assets/0018f76f-46bf-415a-8566-0134b5b10ad7" />
+<img width="124" height="127" alt="{7E398D3E-BAB1-4554-9561-55EBD115669A}" src="https://github.com/user-attachments/assets/9f9f9fac-8d9f-43d2-ad37-8ecef3d33bed" />
+
+
+
+
 
 
 
