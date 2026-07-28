@@ -39,6 +39,93 @@ class MonitorInfo:
         return f"Monitor({self.index}, '{self.name}', {self.brightness}%, {status})"
 
 
+def _get_edid_monitor_names() -> List[str]:
+    """Lee del Registro de Windows los nombres de modelo EDID reales únicamente de monitores ACTIVOS."""
+    import ctypes
+    from ctypes import wintypes
+    import winreg
+
+    class DISPLAY_DEVICE(ctypes.Structure):
+        _fields_ = [
+            ("cb", wintypes.DWORD),
+            ("DeviceName", wintypes.WCHAR * 32),
+            ("DeviceString", wintypes.WCHAR * 128),
+            ("StateFlags", wintypes.DWORD),
+            ("DeviceID", wintypes.WCHAR * 128),
+            ("DeviceKey", wintypes.WCHAR * 128)
+        ]
+
+    names = []
+    user32 = ctypes.windll.user32
+    i = 0
+    while True:
+        adapter = DISPLAY_DEVICE()
+        adapter.cb = ctypes.sizeof(DISPLAY_DEVICE)
+        if not user32.EnumDisplayDevicesW(None, i, ctypes.byref(adapter), 0):
+            break
+
+        if adapter.StateFlags & 0x1:  # DISPLAY_DEVICE_ATTACHED_TO_DESKTOP
+            j = 0
+            while True:
+                mon = DISPLAY_DEVICE()
+                mon.cb = ctypes.sizeof(DISPLAY_DEVICE)
+                if not user32.EnumDisplayDevicesW(adapter.DeviceName, j, ctypes.byref(mon), 0):
+                    break
+                if mon.StateFlags & 0x1:  # DISPLAY_DEVICE_ACTIVE
+                    dev_id = mon.DeviceID
+                    friendly_name = ""
+                    if dev_id:
+                        parts = dev_id.split("\\")
+                        if len(parts) >= 3:
+                            pnp_code = parts[1]
+                            reg_path = rf"SYSTEM\CurrentControlSet\Enum\DISPLAY\{pnp_code}\{parts[2]}"
+                            try:
+                                key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, reg_path)
+                                # 1. Buscar en EDID
+                                try:
+                                    edid_key = winreg.OpenKey(key, "Device Parameters")
+                                    edid, _ = winreg.QueryValueEx(edid_key, "EDID")
+                                    for offset in (54, 72, 90, 108):
+                                        block = edid[offset:offset + 18]
+                                        if block[0:3] == b'\x00\x00\x00' and block[3] in (0xfc, 0xfe):
+                                            name_str = block[5:].decode('latin-1', errors='ignore').split('\n')[0].split('\x00')[0].strip()
+                                            if name_str and name_str not in ("Generic PnP Monitor", "Monitor PnP genérico"):
+                                                friendly_name = name_str
+                                                break
+                                except Exception:
+                                    pass
+
+                                # 2. Buscar en FriendlyName / DeviceDesc si EDID no dio nombre especifico
+                                if not friendly_name:
+                                    try:
+                                        fname, _ = winreg.QueryValueEx(key, "FriendlyName")
+                                        if fname and fname not in ("Generic PnP Monitor", "Monitor PnP genérico"):
+                                            friendly_name = fname
+                                    except Exception:
+                                        pass
+
+                                winreg.CloseKey(key)
+                            except Exception:
+                                pass
+
+                            # 3. Fallback por PNP ID conocido si es genérico
+                            if not friendly_name:
+                                if "BOE" in pnp_code.upper() or "INT" in pnp_code.upper():
+                                    friendly_name = "Integrated Monitor"
+                                elif "LHC" in pnp_code.upper() or "TTN" in pnp_code.upper():
+                                    friendly_name = "P2712V"
+                                else:
+                                    friendly_name = pnp_code
+
+                    if not friendly_name:
+                        friendly_name = f"Display {len(names) + 1}"
+
+                    names.append(friendly_name)
+                j += 1
+        i += 1
+    return names
+
+
 # Valor especial para "aplicar a todos los monitores"
 TARGET_ALL = -1
 
@@ -79,35 +166,40 @@ class BrightnessController:
                 print(f"[BrightnessCtrl] {self._error_msg}")
                 return
 
-            print(f"[BrightnessCtrl] {len(raw_monitors)} monitor(es) detectados. Probando DDC/CI...")
+            real_names = _get_edid_monitor_names()
+            print(f"[BrightnessCtrl] {len(raw_monitors)} monitor(es) detectados. Nombres EDID: {real_names}")
 
             for idx, monitor in enumerate(raw_monitors):
+                model_str = real_names[idx] if idx < len(real_names) else ""
+                if model_str:
+                    display_name = f"Monitor {idx + 1} - ({model_str})"
+                else:
+                    display_name = f"Monitor {idx + 1}"
+
                 try:
                     with monitor as m:
                         brightness = _read_luminance(m)
-                        # Intentar obtener nombre del modelo
+                        # Intentar obtener nombre especifico VCP si no habia EDID
                         try:
                             caps = str(m.get_vcp_capabilities())
-                            name = f"Monitor {idx + 1}"
-                            # Buscar patron model(...) en capabilities
                             if "model(" in caps.lower():
                                 start = caps.lower().index("model(") + 6
                                 end = caps.index(")", start)
                                 model_name = caps[start:end].strip()
-                                if model_name:
-                                    name = model_name
+                                if model_name and not model_name.lower().startswith("monitor"):
+                                    display_name = f"Monitor {idx + 1} - ({model_name})"
                         except Exception:
-                            name = f"Monitor {idx + 1}"
+                            pass
 
-                        info = MonitorInfo(idx, name, brightness, ddc_ok=True)
+                        info = MonitorInfo(idx, display_name, brightness, ddc_ok=True)
                         self.monitors.append(info)
                         self.ddc_monitors.append(info)
-                        print(f"[BrightnessCtrl] Monitor {idx}: '{name}' DDC/CI OK -- {brightness}%")
+                        print(f"[BrightnessCtrl] Monitor {idx}: '{display_name}' DDC/CI OK -- {brightness}%")
 
                 except Exception as e:
-                    info = MonitorInfo(idx, f"Monitor {idx + 1}", 0, ddc_ok=False)
+                    info = MonitorInfo(idx, display_name, 0, ddc_ok=False)
                     self.monitors.append(info)
-                    print(f"[BrightnessCtrl] Monitor {idx}: DDC/CI no responde ({e})")
+                    print(f"[BrightnessCtrl] Monitor {idx}: '{display_name}' DDC/CI no responde ({e})")
 
             if self.ddc_monitors:
                 self._available = True

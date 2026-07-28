@@ -514,7 +514,7 @@ class BrightnessWindow:
             is_active = bc.target_index == mi.index
             ddc_ok = mi.ddc_ok
             icon = "🟢" if ddc_ok else "🔴"
-            suffix = f"  {mi.brightness}%" if ddc_ok else t("no_ddc_suffix")
+            suffix = f":  {mi.brightness}%" if ddc_ok else t("no_ddc_suffix")
 
             btn = ctk.CTkButton(
                 self._monitor_list_fr,
