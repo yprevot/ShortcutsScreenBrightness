@@ -4,6 +4,12 @@ Monitor Brightness Control con atajos de teclado globales.
 """
 import sys
 import os
+
+# Asegurar que el directorio de fuentes 'src' está en la ruta de importación de Python
+_src_dir = os.path.dirname(os.path.abspath(__file__))
+if _src_dir not in sys.path:
+    sys.path.insert(0, _src_dir)
+
 import socket
 import threading
 import tkinter as tk
