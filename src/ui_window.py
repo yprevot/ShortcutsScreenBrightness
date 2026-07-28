@@ -232,6 +232,7 @@ class BrightnessWindow:
     def set_tray_app(self, tray_app):
         self.tray_app = tray_app
 
+    # ── Drag logic ───────────────────────────────────────────────────────────
     def _start_drag(self, event):
         """Registra la posición del mouse al iniciar el arrastre de la ventana."""
         self._drag_x = event.x
@@ -255,21 +256,27 @@ class BrightnessWindow:
         self.win.configure(fg_color=T["bg_root"])
         self.win.withdraw()
 
+        # Arrastre de ventana global (en la ventana de nivel superior)
+        self.win.bind("<ButtonPress-1>", self._start_drag)
+        self.win.bind("<B1-Motion>", self._do_drag)
+
         # ── Tarjeta exterior ─────────────────────────────────────────────────
         card = ctk.CTkFrame(self.win, fg_color=T["bg_card"], corner_radius=18,
                              border_width=1, border_color=T["border"])
         card.pack(fill="both", expand=True, padx=6, pady=6)
         self._card = card
 
-        # ── Header (Zona de arrastre principal) ──────────────────────────────
+        card.bind("<ButtonPress-1>", self._start_drag)
+        card.bind("<B1-Motion>", self._do_drag)
+
+        # ── Header Renglón 1: Título y Botón Cerrar ─────────────────────────
         hdr = ctk.CTkFrame(card, fg_color=T["bg_card"])
         hdr.pack(fill="x", padx=18, pady=(16, 0))
 
-        # El arrastre se vincula ÚNICAMENTE al encabezado
         hdr.bind("<ButtonPress-1>", self._start_drag)
         hdr.bind("<B1-Motion>", self._do_drag)
 
-        self.sun_cv = tk.Canvas(hdr, width=42, height=42,
+        self.sun_cv = tk.Canvas(hdr, width=38, height=38,
                                 bg=T["bg_card"], highlightthickness=0)
         self.sun_cv.pack(side="left")
         self.sun_cv.bind("<ButtonPress-1>", self._start_drag)
@@ -277,58 +284,59 @@ class BrightnessWindow:
         self._draw_sun(50)
 
         info = ctk.CTkFrame(hdr, fg_color=T["bg_card"])
-        info.pack(side="left", padx=(8, 0))
+        info.pack(side="left", padx=(6, 0))
         info.bind("<ButtonPress-1>", self._start_drag)
         info.bind("<B1-Motion>", self._do_drag)
 
-        title_lbl = ctk.CTkLabel(info, text="ShortcutsScreenBrightness",
-                                 font=ctk.CTkFont("Segoe UI", 12, "bold"),
+        title_lbl = ctk.CTkLabel(info, text="Shortcuts Screen Brightness",
+                                 font=ctk.CTkFont("Segoe UI", 13, "bold"),
                                  text_color=T["text_pri"])
         title_lbl.pack(anchor="w")
         title_lbl.bind("<ButtonPress-1>", self._start_drag)
         title_lbl.bind("<B1-Motion>", self._do_drag)
-
-        self.status_lbl = ctk.CTkLabel(info, text="DDC/CI",
-                                        font=ctk.CTkFont("Segoe UI", 11),
-                                        text_color=T["text_sec"])
-        self.status_lbl.pack(anchor="w")
-        self.status_lbl.bind("<ButtonPress-1>", self._start_drag)
-        self.status_lbl.bind("<B1-Motion>", self._do_drag)
 
         # Botón cerrar (X)
         ctk.CTkButton(hdr, text="✕", width=28, height=28,
                        fg_color=T["bg_card"], hover_color=T["bg_surface"],
                        text_color=T["text_sec"], font=ctk.CTkFont("Segoe UI", 13),
                        corner_radius=14, command=self.hide
-                       ).pack(side="right", padx=(4, 0))
+                       ).pack(side="right")
 
-        # Selector de idioma limpio con dos botones pill [ ES ] [ EN ]
-        lang_fr = ctk.CTkFrame(hdr, fg_color=T["bg_surface"], corner_radius=12)
-        lang_fr.pack(side="right", padx=(0, 4))
+        # ── Header Renglón 2: Selector de idioma exclusivo ────────────────────
+        lang_row = ctk.CTkFrame(card, fg_color=T["bg_card"])
+        lang_row.pack(fill="x", padx=18, pady=(10, 0))
+        lang_row.bind("<ButtonPress-1>", self._start_drag)
+        lang_row.bind("<B1-Motion>", self._do_drag)
 
-        self.btn_lang_es = ctk.CTkButton(
-            lang_fr,
-            text="ES",
-            width=32,
+        self.lang_lbl = ctk.CTkLabel(lang_row, text=t("language_label"),
+                                     font=ctk.CTkFont("Segoe UI", 11),
+                                     text_color=T["text_sec"])
+        self.lang_lbl.pack(side="left")
+        self.lang_lbl.bind("<ButtonPress-1>", self._start_drag)
+        self.lang_lbl.bind("<B1-Motion>", self._do_drag)
+
+        lang_map = {"es": "ES", "en": "EN"}
+        current_lang_str = lang_map.get(get_language_mode(), "ES")
+
+        self.lang_menu = ctk.CTkOptionMenu(
+            lang_row,
+            values=["ES", "EN"],
+            width=86,
             height=26,
-            corner_radius=10,
+            corner_radius=8,
+            fg_color=T["bg_surface"],
+            button_color=T["bg_hover"],
+            button_hover_color=T["border"],
+            text_color=T["accent"],
+            dropdown_fg_color=T["bg_surface"],
+            dropdown_text_color=T["text_pri"],
+            dropdown_hover_color=T["bg_hover"],
             font=ctk.CTkFont("Segoe UI", 11, "bold"),
-            command=lambda: self._on_language_change("ES")
+            dynamic_resizing=False,
+            command=self._on_language_change
         )
-        self.btn_lang_es.pack(side="left", padx=2, pady=2)
-
-        self.btn_lang_en = ctk.CTkButton(
-            lang_fr,
-            text="EN",
-            width=32,
-            height=26,
-            corner_radius=10,
-            font=ctk.CTkFont("Segoe UI", 11, "bold"),
-            command=lambda: self._on_language_change("EN")
-        )
-        self.btn_lang_en.pack(side="left", padx=(0, 2), pady=2)
-
-        self._update_lang_buttons_style()
+        self.lang_menu.set(current_lang_str)
+        self.lang_menu.pack(side="right")
 
         # ── Selector de monitores ────────────────────────────────────────────
         mon_fr = ctk.CTkFrame(card, fg_color=T["bg_surface"], corner_radius=10)
@@ -348,12 +356,12 @@ class BrightnessWindow:
 
         self._build_monitor_list()
 
-        # ── Porcentaje grande ────────────────────────────────────────────────
+        # ── Porcentaje grande (Tamaño reducido a 40pt) ────────────────────────
         pct_fr = ctk.CTkFrame(card, fg_color=T["bg_card"])
-        pct_fr.pack(pady=(16, 0))
+        pct_fr.pack(pady=(12, 0))
 
         self.pct_lbl = ctk.CTkLabel(pct_fr, text="50%",
-                                     font=ctk.CTkFont("Segoe UI", 56, "bold"),
+                                     font=ctk.CTkFont("Segoe UI", 40, "bold"),
                                      text_color=T["accent"])
         self.pct_lbl.pack()
 
@@ -382,6 +390,8 @@ class BrightnessWindow:
                                      command=self._on_slider)
         self.slider.set(50)
         self.slider.pack(fill="x", pady=(8, 0))
+        # Detener la propagación al arrastrar el slider para que no mueva la ventana
+        self.slider.bind("<B1-Motion>", lambda e: "break", add="+")
 
         # ── Botones rapidos de porcentaje ────────────────────────────────────
         qb_fr = ctk.CTkFrame(card, fg_color=T["bg_card"])
@@ -528,64 +538,23 @@ class BrightnessWindow:
         brightness = self.brightness_ctrl.current
         self._update_ui(brightness)
 
-        # Actualizar status label
-        T = self.T
-        if index == TARGET_ALL:
-            n = len(self.brightness_ctrl.ddc_monitors)
-            self.status_lbl.configure(text=f"DDC/CI ({n})", text_color=T["text_sec"])
-        else:
-            for mi in self.brightness_ctrl.monitors:
-                if mi.index == index:
-                    self.status_lbl.configure(text=f"{mi.name}  ·  DDC/CI", text_color=T["text_sec"])
-                    break
-
     def _on_language_change(self, selected_str: str):
         """Callback cuando el usuario cambia la opción en el selector de idioma."""
         mode_map = {"ES": "es", "EN": "en"}
         mode = mode_map.get(selected_str, "es")
         self.config.set("language", mode)
         set_language_mode(mode)
-        self._update_lang_buttons_style()
         self._retranslate_ui()
         if self.tray_app:
             self.tray_app.update_tray_menu()
-
-    def _update_lang_buttons_style(self):
-        """Actualiza visualmente el estado resaltado de los botones de idioma."""
-        if not CTK_AVAILABLE or not hasattr(self, "btn_lang_es"):
-            return
-
-        T = self.T
-        current_mode = get_language_mode()
-
-        if current_mode == "es":
-            self.btn_lang_es.configure(
-                fg_color=T["accent"],
-                text_color=T["bg_root"],
-                hover_color=T["accent2"]
-            )
-            self.btn_lang_en.configure(
-                fg_color=T["bg_surface"],
-                text_color=T["text_sec"],
-                hover_color=T["bg_hover"]
-            )
-        else:
-            self.btn_lang_es.configure(
-                fg_color=T["bg_surface"],
-                text_color=T["text_sec"],
-                hover_color=T["bg_hover"]
-            )
-            self.btn_lang_en.configure(
-                fg_color=T["accent"],
-                text_color=T["bg_root"],
-                hover_color=T["accent2"]
-            )
 
     def _retranslate_ui(self):
         """Actualiza dinámicamente los textos traducibles de la UI."""
         if not CTK_AVAILABLE:
             return
 
+        if hasattr(self, "lang_lbl"):
+            self.lang_lbl.configure(text=t("language_label"))
         self.monitors_hdr_lbl.configure(text=t("monitors_section"))
         self.desc_lbl.configure(text=t("brightness_label"))
         self.startup_switch.configure(text=t("startup_switch"))
@@ -594,9 +563,6 @@ class BrightnessWindow:
         if len(self.hk_desc_lbls) >= 2:
             self.hk_desc_lbls[0].configure(text=t("hk_step_large"))
             self.hk_desc_lbls[1].configure(text=t("hk_step_small"))
-
-        if not self.brightness_ctrl.is_available:
-            self.status_lbl.configure(text=t("status_ddc_error"))
 
         self._build_monitor_list()
 
@@ -678,11 +644,8 @@ class BrightnessWindow:
     def _on_slider(self, value):
         """Callback del slider - actualiza UI al instante, hardware con debounce."""
         v = int(float(value))
-        self.brightness_ctrl._brightness = max(0, min(100, v))
-        self.brightness_ctrl._pending = max(0, min(100, v))
+        self.brightness_ctrl.set_brightness(v)
         self._update_ui(v)
-        if self.brightness_ctrl.is_available:
-            self.brightness_ctrl._reset_debounce()
 
     def _set(self, value: int):
         value = max(0, min(100, value))
@@ -700,6 +663,7 @@ class BrightnessWindow:
         if CTK_AVAILABLE:
             self.pct_lbl.configure(text=f"{brightness}%", text_color=color)
             self.slider.set(brightness)
+            self._build_monitor_list()
         else:
             self.pct_lbl.configure(text=f"{brightness}%", fg=color)
             self.slider_var.set(brightness)

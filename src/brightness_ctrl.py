@@ -214,6 +214,10 @@ class BrightnessController:
         with self._lock:
             self._brightness = value
             self._pending    = value
+            indices = self.get_target_indices()
+            for mi in self.ddc_monitors:
+                if mi.index in indices:
+                    mi.brightness = value
         if self._available:
             self._reset_debounce()
         return value
