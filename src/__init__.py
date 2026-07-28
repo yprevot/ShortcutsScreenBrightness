@@ -1,0 +1,1 @@
+# ShortcutsScreenBrightness - Monitor Brightness Control
