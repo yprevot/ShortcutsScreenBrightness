@@ -466,9 +466,7 @@ class BrightnessWindow:
                                        )
         self.exit_btn.pack(side="right")
 
-        # Estado DDC/CI
-        if not self.brightness_ctrl.is_available:
-            self.status_lbl.configure(text=t("status_ddc_error"), text_color=T["error"])
+        # Estado DDC/CI — manejado en la lista de monitores (_build_monitor_list)
 
         self.win.bind("<FocusOut>", self._on_focus_out)
 
