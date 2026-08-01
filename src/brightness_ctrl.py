@@ -32,13 +32,14 @@ def _read_luminance(monitor) -> int:
 class MonitorInfo:
     """Datos de un monitor detectado (DDC/CI o Laptop WMI)."""
 
-    def __init__(self, index: int, name: str, brightness: int, ddc_ok: bool, is_wmi: bool = False, instance_name: str = ""):
+    def __init__(self, index: int, name: str, brightness: int, ddc_ok: bool, is_wmi: bool = False, instance_name: str = "", raw_index: int = -1):
         self.index         = index
         self.name          = name
         self.brightness    = brightness
         self.ddc_ok        = ddc_ok
         self.is_wmi        = is_wmi
         self.instance_name = instance_name
+        self.raw_index     = raw_index
 
     def __repr__(self):
         status = "WMI Laptop" if self.is_wmi else ("OK" if self.ddc_ok else "NO DDC")
@@ -133,9 +134,9 @@ def _get_edid_name_from_id(dev_id: str) -> str:
         pnp_code = parts[1]
         instance_id = parts[2].split("_")[0]  # Remover sufijo _0 si existe
         reg_path = rf"SYSTEM\CurrentControlSet\Enum\DISPLAY\{pnp_code}\{instance_id}"
+        friendly_name = ""
         try:
             key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, reg_path)
-            friendly_name = ""
             # 1. Buscar en EDID
             try:
                 edid_key = winreg.OpenKey(key, "Device Parameters")
@@ -160,23 +161,32 @@ def _get_edid_name_from_id(dev_id: str) -> str:
                     pass
 
             winreg.CloseKey(key)
-
-            # 3. Fallback por PNP ID conocido
-            if not friendly_name:
-                if "BOE" in pnp_code.upper() or "INT" in pnp_code.upper():
-                    friendly_name = "Integrated Monitor"
-                elif "LHC" in pnp_code.upper() or "TTN" in pnp_code.upper():
-                    friendly_name = "P2712V"
-                else:
-                    friendly_name = pnp_code
-            return friendly_name
         except Exception:
             pass
+
+        # 3. Fallback por PNP ID conocido
+        if not friendly_name:
+            if "BOE" in pnp_code.upper() or "INT" in pnp_code.upper():
+                friendly_name = "Integrated Monitor"
+            elif "LHC" in pnp_code.upper() or "TTN" in pnp_code.upper():
+                friendly_name = "P2712V"
+            else:
+                friendly_name = pnp_code
+        return friendly_name
     return ""
 
 
-def _get_active_external_devices() -> List[tuple]:
-    """Obtiene la lista de (DeviceID, ModelName) únicamente para monitores externos activos en Windows."""
+def _get_monitorcontrol_device_names() -> List[str]:
+    """Obtiene los nombres EDID exactos de los monitores de monitorcontrol en su MISMO ORDEN (HMONITOR)."""
+    class MONITORINFOEXW(ctypes.Structure):
+        _fields_ = [
+            ("cbSize", wintypes.DWORD),
+            ("rcMonitor", wintypes.RECT),
+            ("rcWork", wintypes.RECT),
+            ("dwFlags", wintypes.DWORD),
+            ("szDevice", wintypes.WCHAR * 32)
+        ]
+
     class DISPLAY_DEVICE(ctypes.Structure):
         _fields_ = [
             ("cb", wintypes.DWORD),
@@ -188,31 +198,38 @@ def _get_active_external_devices() -> List[tuple]:
         ]
 
     user32 = ctypes.windll.user32
-    external_devices = []
-    i = 0
-    while True:
-        adapter = DISPLAY_DEVICE()
-        adapter.cb = ctypes.sizeof(DISPLAY_DEVICE)
-        if not user32.EnumDisplayDevicesW(None, i, ctypes.byref(adapter), 0):
-            break
+    hmonitors = []
+    MONITORENUMPROC = ctypes.WINFUNCTYPE(
+        wintypes.BOOL,
+        wintypes.HMONITOR,
+        wintypes.HDC,
+        ctypes.POINTER(wintypes.RECT),
+        wintypes.LPARAM
+    )
 
-        if adapter.StateFlags & 0x1:  # DISPLAY_DEVICE_ATTACHED_TO_DESKTOP
-            j = 0
-            while True:
-                mon = DISPLAY_DEVICE()
-                mon.cb = ctypes.sizeof(DISPLAY_DEVICE)
-                if not user32.EnumDisplayDevicesW(adapter.DeviceName, j, ctypes.byref(mon), 0):
-                    break
-                if mon.StateFlags & 0x1:  # DISPLAY_DEVICE_ACTIVE
-                    dev_id = mon.DeviceID
-                    if dev_id and "BOE" not in dev_id.upper():
-                        name = _get_edid_name_from_id(dev_id)
-                        if not name:
-                            name = f"Display {len(external_devices) + 1}"
-                        external_devices.append((dev_id, name))
-                j += 1
-        i += 1
-    return external_devices
+    def callback(hMonitor, hdc, lprcMonitor, dwData):
+        hmonitors.append(hMonitor)
+        return True
+
+    user32.EnumDisplayMonitors(None, None, MONITORENUMPROC(callback), 0)
+
+    names = []
+    for hMon in hmonitors:
+        info = MONITORINFOEXW()
+        info.cbSize = ctypes.sizeof(MONITORINFOEXW)
+        if user32.GetMonitorInfoW(hMon, ctypes.byref(info)):
+            mon_dev = DISPLAY_DEVICE()
+            mon_dev.cb = ctypes.sizeof(DISPLAY_DEVICE)
+            if user32.EnumDisplayDevicesW(info.szDevice, 0, ctypes.byref(mon_dev), 0):
+                dev_id = mon_dev.DeviceID
+                name = _get_edid_name_from_id(dev_id)
+                names.append(name)
+            else:
+                names.append("")
+        else:
+            names.append("")
+
+    return names
 
 
 # Valor especial para "aplicar a todos los monitores"
@@ -273,29 +290,30 @@ class BrightnessController:
             display_number += 1
 
         # 2. Detectar monitores externos DDC/CI activos
-        external_devices = _get_active_external_devices()
+        mc_names = _get_monitorcontrol_device_names()
         try:
             from monitorcontrol import get_monitors
             raw_monitors = list(get_monitors())
 
             for idx, monitor in enumerate(raw_monitors):
-                model_str = external_devices[idx][1] if idx < len(external_devices) else ""
-                display_name = f"Monitor {display_number} - ({model_str})" if model_str else f"Monitor {display_number}"
-
+                model_str = mc_names[idx] if idx < len(mc_names) else ""
+                
                 try:
                     with monitor as m:
                         brightness = _read_luminance(m)
+                        display_name = f"Monitor {display_number} - ({model_str})" if model_str else f"Monitor {display_number}"
                         info = MonitorInfo(
                             index=display_number - 1,
                             name=display_name,
                             brightness=brightness,
                             ddc_ok=True,
-                            is_wmi=False
+                            is_wmi=False,
+                            raw_index=idx
                         )
                         new_ddc_monitors.append(info)
                         display_number += 1
                 except Exception as e:
-                    print(f"[BrightnessCtrl] Monitor DDC/CI no responde ({e})")
+                    print(f"[BrightnessCtrl] Monitor DDC/CI idx={idx} no responde ({e})")
         except Exception as e:
             print(f"[BrightnessCtrl] Error DDC/CI en rescan: {e}")
 
@@ -386,16 +404,13 @@ class BrightnessController:
                 try:
                     from monitorcontrol import get_monitors
                     raw = list(get_monitors())
-                    ddc_idx = 0
                     for mi in self.ddc_monitors:
-                        if not mi.is_wmi:
-                            if ddc_idx < len(raw):
-                                try:
-                                    with raw[ddc_idx] as m:
-                                        mi.brightness = _read_luminance(m)
-                                except Exception:
-                                    pass
-                                ddc_idx += 1
+                        if not mi.is_wmi and 0 <= mi.raw_index < len(raw):
+                            try:
+                                with raw[mi.raw_index] as m:
+                                    mi.brightness = _read_luminance(m)
+                            except Exception:
+                                pass
                 except Exception:
                     pass
 
@@ -473,19 +488,14 @@ class BrightnessController:
                 try:
                     from monitorcontrol import get_monitors
                     raw = list(get_monitors())
-                    # Mapear monitores DDC/CI a raw_monitors
-                    non_wmi_count = 0
-                    for mi_all in self.ddc_monitors:
-                        if not mi_all.is_wmi:
-                            if mi_all.index in indices:
-                                if non_wmi_count < len(raw):
-                                    try:
-                                        with raw[non_wmi_count] as m:
-                                            m.set_luminance(value)
-                                        mi_all.brightness = value
-                                    except Exception as e:
-                                        print(f"[BrightnessCtrl] Error monitor DDC/CI {mi_all.index}: {e}")
-                            non_wmi_count += 1
+                    for mi_target in ddc_targets:
+                        if 0 <= mi_target.raw_index < len(raw):
+                            try:
+                                with raw[mi_target.raw_index] as m:
+                                    m.set_luminance(value)
+                                mi_target.brightness = value
+                            except Exception as e:
+                                print(f"[BrightnessCtrl] Error monitor DDC/CI {mi_target.index}: {e}")
                 except Exception as e:
                     print(f"[BrightnessCtrl] Error DDC/CI al aplicar brillo {value}%: {e}")
 

@@ -11,7 +11,10 @@ Una aplicación ligera, elegante y moderna para la bandeja del sistema de Window
 
 ## ✨ Características Principales
 
-- 🖥️ **Soporte Multi-Monitor con Detección EDID 1:1**: Identifica con precisión los monitores físicamente conectados mostrando su número y modelo real (ej. `Monitor 1 - (Integrated Monitor)` / `Monitor 2 - (P2712V)` Titan Army, Dell, LG, ASUS, Samsung, BenQ, etc.).
+- 💻 **Soporte Multi-Monitor Híbrido (WMI Laptop + DDC/CI Externos)**: Soporte completo e integrado para pantallas de laptop (vía API WMI de Windows `WmiMonitorBrightness`) y monitores externos vía protocolo DDC/CI.
+- 🔌 **Autodetección en Caliente (Hot-Plug & Unplug)**: Detecta automáticamente cuando conectas o desconectas una segunda, tercera o cuarta pantalla en tiempo real sin necesidad de reiniciar la aplicación.
+- 🏷️ **Mapeo EDID 1:1 e Identificación Precisa**: Mapeo exacto vía `EnumDisplayMonitors` para evitar intercambio de nombres entre la pantalla de la laptop y los monitores externos, identificando el modelo real (ej. `Monitor 1 - (Integrated Monitor)` / `Monitor 2 - (P2712V)`).
+- 🔢 **Numeración Secuencial Limpia**: Muestra únicamente las pantallas activas y controlables ordenadas limpiamente (Monitor 1, Monitor 2...).
 - 🔄 **Sincronización en Tiempo Real**: Al deslizar la barra de brillo o presionar hotkeys, el valor del monitor y de la lista se actualiza instantáneamente en el mismo milisegundo.
 - 🌐 **Multilingüe Automático y Selector de Idioma (ES / EN)**:
   - Detecta automáticamente el idioma de la interfaz del sistema operativo Windows (`GetUserDefaultUILanguage`).
@@ -19,7 +22,7 @@ Una aplicación ligera, elegante y moderna para la bandeja del sistema de Window
   - Sincroniza dinámicamente tanto la ventana como el menú contextual del **System Tray**.
 - 🖐️ **Ventana Flotante Arrastrable (Window Dragging)**: Haz clic y arrastra libremente la aplicación a cualquier pantalla o posición del monitor con aislamiento inteligente de controles.
 - 🎨 **Tema Adaptativo de Sistema (Dark / Light Mode)**: Paleta de colores HSL que se adapta automáticamente al tema claro u oscuro de Windows (`darkdetect`).
-- ⚡ **Arquitectura Anti-Delay (Debounced I/O)**: Respuesta de interfaz a 0ms mediante caché local, enviando comandos DDC/CI al hardware tras 80ms de inactividad.
+- ⚡ **Arquitectura Anti-Delay (Debounced I/O)**: Respuesta de interfaz a 0ms mediante caché local, enviando comandos al hardware tras 80ms de inactividad.
 - ⌨️ **Atajos de Teclado Globales**:
   - `Ctrl + Alt + Flecha Arriba` ➔ Incrementar brillo (+6%)
   - `Ctrl + Alt + Flecha Abajo` ➔ Disminuir brillo (-6%)
