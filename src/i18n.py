@@ -12,8 +12,8 @@ TRANSLATIONS = {
         "app_name": "ShortcutsScreenBrightness",
         "app_tooltip": "ShortcutsScreenBrightness — Control de Brillo",
         "status_ddc_ok": "DDC/CI",
-        "status_ddc_error": "DDC/CI no disponible",
-        "monitors_section": "Monitores (DDC/CI)",
+        "status_ddc_error": "Sin monitores disponibles",
+        "monitors_section": "Monitores",
         "language_label": "Idioma:",
         "brightness_label": "Brillo del monitor",
         "all_monitors": "🖥  Todos los monitores ({count})",
@@ -34,23 +34,21 @@ TRANSLATIONS = {
             "Busca el ícono ☀ en la bandeja del sistema (esquina inferior derecha)."
         ),
         "ddc_error_osd": (
-            "No se encontraron monitores DDC/CI.\n"
-            "Verifica: OSD del monitor -> Setup -> DDC/CI = On"
+            "No se encontraron monitores ni pantalla de laptop disponibles."
         ),
         "ddc_error_generic": (
-            "Ningún monitor respondió a DDC/CI.\n"
+            "Ninguna pantalla respondió a las APIs de control.\n"
             "Verifica:\n"
-            "  • DDC/CI = On en el OSD del monitor\n"
-            "  • Cable HDMI / DisplayPort / USB-C (DP Alt Mode)\n"
-            "  • Conexión directa sin adaptadores incompatibles"
+            "  • DDC/CI = On en el OSD del monitor externo\n"
+            "  • Controlador de pantalla o WMI habilitado en la laptop"
         ),
     },
     "en": {
         "app_name": "ShortcutsScreenBrightness",
         "app_tooltip": "ShortcutsScreenBrightness — Brightness Control",
         "status_ddc_ok": "DDC/CI",
-        "status_ddc_error": "DDC/CI not available",
-        "monitors_section": "Monitors (DDC/CI)",
+        "status_ddc_error": "No monitors available",
+        "monitors_section": "Monitors",
         "language_label": "Language:",
         "brightness_label": "Monitor brightness",
         "all_monitors": "🖥  All monitors ({count})",
@@ -71,15 +69,13 @@ TRANSLATIONS = {
             "Look for the ☀ icon in the system tray (bottom right corner)."
         ),
         "ddc_error_osd": (
-            "No DDC/CI monitors found.\n"
-            "Check: Monitor OSD -> Setup -> DDC/CI = On"
+            "No monitors or laptop screen available."
         ),
         "ddc_error_generic": (
-            "No monitor responded to DDC/CI.\n"
+            "No display responded to control APIs.\n"
             "Check:\n"
-            "  • DDC/CI = On in your monitor's OSD\n"
-            "  • HDMI / DisplayPort / USB-C (DP Alt Mode) cable\n"
-            "  • Direct connection without incompatible docks/hubs"
+            "  • DDC/CI = On in your external monitor's OSD\n"
+            "  • Graphics driver or WMI enabled on laptop"
         ),
     },
 }
