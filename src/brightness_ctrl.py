@@ -4,14 +4,18 @@ Comunica con monitores externos a traves de DDC/CI (monitorcontrol) y pantallas 
 de laptops a traves de la API WMI de Windows (WmiMonitorBrightness).
 
 Multi-monitor hibrido y autodeteccion en caliente (Hot-Plug):
-  - Descubre TODOS los monitores (Laptop WMI y externos DDC/CI).
-  - Permite rescanear en caliente cuando se conecta o desconecta un monitor.
+  - Descubre TODOS los monitores ACTIVOS (Laptop WMI y externos DDC/CI).
+  - Asigna nombres EDID exactos por DeviceID evitando intercambio de nombres.
+  - Numeracion secuencial 1, 2, 3... basada estrictamente en monitores activos.
   - La UI se actualiza INMEDIATAMENTE desde cache.
   - El comando se envia solo despues de DEBOUNCE_MS ms sin mas cambios.
 """
 import threading
 import json
 import subprocess
+import ctypes
+from ctypes import wintypes
+import winreg
 from typing import Optional, List, Dict
 
 from i18n import t
@@ -119,12 +123,60 @@ def _set_wmi_brightness(instance_name: str, val: int):
         print(f"[BrightnessCtrl] Error al establecer brillo WMI PowerShell: {e}")
 
 
-def _get_edid_monitor_names() -> List[str]:
-    """Lee del Registro de Windows los nombres de modelo EDID reales únicamente de monitores ACTIVOS."""
-    import ctypes
-    from ctypes import wintypes
-    import winreg
+# ── Parser EDID preciso por DeviceID ─────────────────────────────────────────
+def _get_edid_name_from_id(dev_id: str) -> str:
+    """Busca el nombre EDID exacto en el registro para un DeviceID especifico."""
+    if not dev_id:
+        return ""
+    parts = dev_id.split("\\")
+    if len(parts) >= 3:
+        pnp_code = parts[1]
+        instance_id = parts[2].split("_")[0]  # Remover sufijo _0 si existe
+        reg_path = rf"SYSTEM\CurrentControlSet\Enum\DISPLAY\{pnp_code}\{instance_id}"
+        try:
+            key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, reg_path)
+            friendly_name = ""
+            # 1. Buscar en EDID
+            try:
+                edid_key = winreg.OpenKey(key, "Device Parameters")
+                edid, _ = winreg.QueryValueEx(edid_key, "EDID")
+                for offset in (54, 72, 90, 108):
+                    block = edid[offset:offset + 18]
+                    if block[0:3] == b'\x00\x00\x00' and block[3] in (0xfc, 0xfe):
+                        name_str = block[5:].decode('latin-1', errors='ignore').split('\n')[0].split('\x00')[0].strip()
+                        if name_str and name_str not in ("Generic PnP Monitor", "Monitor PnP genérico"):
+                            friendly_name = name_str
+                            break
+            except Exception:
+                pass
 
+            # 2. Buscar en FriendlyName
+            if not friendly_name:
+                try:
+                    fname, _ = winreg.QueryValueEx(key, "FriendlyName")
+                    if fname and fname not in ("Generic PnP Monitor", "Monitor PnP genérico"):
+                        friendly_name = fname
+                except Exception:
+                    pass
+
+            winreg.CloseKey(key)
+
+            # 3. Fallback por PNP ID conocido
+            if not friendly_name:
+                if "BOE" in pnp_code.upper() or "INT" in pnp_code.upper():
+                    friendly_name = "Integrated Monitor"
+                elif "LHC" in pnp_code.upper() or "TTN" in pnp_code.upper():
+                    friendly_name = "P2712V"
+                else:
+                    friendly_name = pnp_code
+            return friendly_name
+        except Exception:
+            pass
+    return ""
+
+
+def _get_active_external_devices() -> List[tuple]:
+    """Obtiene la lista de (DeviceID, ModelName) únicamente para monitores externos activos en Windows."""
     class DISPLAY_DEVICE(ctypes.Structure):
         _fields_ = [
             ("cb", wintypes.DWORD),
@@ -135,8 +187,8 @@ def _get_edid_monitor_names() -> List[str]:
             ("DeviceKey", wintypes.WCHAR * 128)
         ]
 
-    names = []
     user32 = ctypes.windll.user32
+    external_devices = []
     i = 0
     while True:
         adapter = DISPLAY_DEVICE()
@@ -153,57 +205,14 @@ def _get_edid_monitor_names() -> List[str]:
                     break
                 if mon.StateFlags & 0x1:  # DISPLAY_DEVICE_ACTIVE
                     dev_id = mon.DeviceID
-                    friendly_name = ""
-                    if dev_id:
-                        parts = dev_id.split("\\")
-                        if len(parts) >= 3:
-                            pnp_code = parts[1]
-                            reg_path = rf"SYSTEM\CurrentControlSet\Enum\DISPLAY\{pnp_code}\{parts[2]}"
-                            try:
-                                key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, reg_path)
-                                # 1. Buscar en EDID
-                                try:
-                                    edid_key = winreg.OpenKey(key, "Device Parameters")
-                                    edid, _ = winreg.QueryValueEx(edid_key, "EDID")
-                                    for offset in (54, 72, 90, 108):
-                                        block = edid[offset:offset + 18]
-                                        if block[0:3] == b'\x00\x00\x00' and block[3] in (0xfc, 0xfe):
-                                            name_str = block[5:].decode('latin-1', errors='ignore').split('\n')[0].split('\x00')[0].strip()
-                                            if name_str and name_str not in ("Generic PnP Monitor", "Monitor PnP genérico"):
-                                                friendly_name = name_str
-                                                break
-                                except Exception:
-                                    pass
-
-                                # 2. Buscar en FriendlyName / DeviceDesc si EDID no dio nombre especifico
-                                if not friendly_name:
-                                    try:
-                                        fname, _ = winreg.QueryValueEx(key, "FriendlyName")
-                                        if fname and fname not in ("Generic PnP Monitor", "Monitor PnP genérico"):
-                                            friendly_name = fname
-                                    except Exception:
-                                        pass
-
-                                winreg.CloseKey(key)
-                            except Exception:
-                                pass
-
-                            # 3. Fallback por PNP ID conocido si es genérico
-                            if not friendly_name:
-                                if "BOE" in pnp_code.upper() or "INT" in pnp_code.upper():
-                                    friendly_name = "Integrated Monitor"
-                                elif "LHC" in pnp_code.upper() or "TTN" in pnp_code.upper():
-                                    friendly_name = "P2712V"
-                                else:
-                                    friendly_name = pnp_code
-
-                    if not friendly_name:
-                        friendly_name = f"Display {len(names) + 1}"
-
-                    names.append(friendly_name)
+                    if dev_id and "BOE" not in dev_id.upper():
+                        name = _get_edid_name_from_id(dev_id)
+                        if not name:
+                            name = f"Display {len(external_devices) + 1}"
+                        external_devices.append((dev_id, name))
                 j += 1
         i += 1
-    return names
+    return external_devices
 
 
 # Valor especial para "aplicar a todos los monitores"
@@ -215,8 +224,8 @@ class BrightnessController:
     Controla el brillo de uno o multiples monitores (Laptop WMI y/o DDC/CI externos).
 
     Atributos publicos:
-      monitors:       lista de MonitorInfo (todos los detectados)
-      ddc_monitors:   lista de MonitorInfo (todos los controlables: WMI Laptop + DDC/CI)
+      monitors:       lista de MonitorInfo (solo los activos y controlables)
+      ddc_monitors:   lista de MonitorInfo (identica a monitors)
       target_index:   indice del monitor activo, o TARGET_ALL para todos
     """
 
@@ -238,72 +247,64 @@ class BrightnessController:
     # -- Redescubrimiento en caliente (Hot-Plug) ------------------------------
     def rescan_monitors(self) -> bool:
         """
-        Vuelve a detectar monitores (Laptop WMI y DDC/CI externos).
+        Vuelve a detectar monitores activos (Laptop WMI y DDC/CI externos).
         Devuelve True si la lista o estado de monitores controlables cambio.
         """
-        real_names = _get_edid_monitor_names()
-        new_monitors: List[MonitorInfo] = []
         new_ddc_monitors: List[MonitorInfo] = []
-        current_idx = 0
+        display_number = 1
 
         # 1. Detectar pantallas integradas de Laptop via WMI
         wmi_laptops = _get_wmi_laptop_monitors()
         for w_item in wmi_laptops:
-            model_str = real_names[current_idx] if current_idx < len(real_names) else "Integrated Monitor"
-            display_name = f"Monitor {current_idx + 1} - ({model_str})"
-            brightness = w_item["brightness"]
             inst_name = w_item["instance"]
+            model_name = _get_edid_name_from_id(inst_name) or "Integrated Monitor"
+            display_name = f"Monitor {display_number} - ({model_name})"
+            brightness = w_item["brightness"]
 
-            info = MonitorInfo(current_idx, display_name, brightness, ddc_ok=True, is_wmi=True, instance_name=inst_name)
-            new_monitors.append(info)
+            info = MonitorInfo(
+                index=display_number - 1,
+                name=display_name,
+                brightness=brightness,
+                ddc_ok=True,
+                is_wmi=True,
+                instance_name=inst_name
+            )
             new_ddc_monitors.append(info)
-            current_idx += 1
+            display_number += 1
 
-        # 2. Detectar monitores externos via DDC/CI (monitorcontrol)
+        # 2. Detectar monitores externos DDC/CI activos
+        external_devices = _get_active_external_devices()
         try:
             from monitorcontrol import get_monitors
             raw_monitors = list(get_monitors())
 
-            for monitor in raw_monitors:
-                model_str = real_names[current_idx] if current_idx < len(real_names) else ""
-                if model_str:
-                    display_name = f"Monitor {current_idx + 1} - ({model_str})"
-                else:
-                    display_name = f"Monitor {current_idx + 1}"
+            for idx, monitor in enumerate(raw_monitors):
+                model_str = external_devices[idx][1] if idx < len(external_devices) else ""
+                display_name = f"Monitor {display_number} - ({model_str})" if model_str else f"Monitor {display_number}"
 
                 try:
                     with monitor as m:
                         brightness = _read_luminance(m)
-                        try:
-                            caps = str(m.get_vcp_capabilities())
-                            if "model(" in caps.lower():
-                                start = caps.lower().index("model(") + 6
-                                end = caps.index(")", start)
-                                model_name = caps[start:end].strip()
-                                if model_name and not model_name.lower().startswith("monitor"):
-                                    display_name = f"Monitor {current_idx + 1} - ({model_name})"
-                        except Exception:
-                            pass
-
-                        info = MonitorInfo(current_idx, display_name, brightness, ddc_ok=True, is_wmi=False)
-                        new_monitors.append(info)
+                        info = MonitorInfo(
+                            index=display_number - 1,
+                            name=display_name,
+                            brightness=brightness,
+                            ddc_ok=True,
+                            is_wmi=False
+                        )
                         new_ddc_monitors.append(info)
-
+                        display_number += 1
                 except Exception as e:
-                    info = MonitorInfo(current_idx, display_name, 0, ddc_ok=False, is_wmi=False)
-                    new_monitors.append(info)
-
-                current_idx += 1
-
+                    print(f"[BrightnessCtrl] Monitor DDC/CI no responde ({e})")
         except Exception as e:
             print(f"[BrightnessCtrl] Error DDC/CI en rescan: {e}")
 
         with self._lock:
-            old_sig = [(m.index, m.name, m.ddc_ok) for m in self.ddc_monitors]
-            new_sig = [(m.index, m.name, m.ddc_ok) for m in new_ddc_monitors]
+            old_sig = [(m.index, m.name, m.brightness) for m in self.ddc_monitors]
+            new_sig = [(m.index, m.name, m.brightness) for m in new_ddc_monitors]
             changed = (old_sig != new_sig)
 
-            self.monitors = new_monitors
+            self.monitors = new_ddc_monitors
             self.ddc_monitors = new_ddc_monitors
 
             if self.ddc_monitors:
@@ -322,7 +323,7 @@ class BrightnessController:
                 self._error_msg = t("ddc_error_generic")
 
             if changed:
-                print(f"[BrightnessCtrl] Hot-Plug monitores actualizado! Controlables: {len(self.ddc_monitors)}")
+                print(f"[BrightnessCtrl] Monitores activos actualizados ({len(self.ddc_monitors)}): {self.ddc_monitors}")
 
             return changed
 
@@ -474,9 +475,9 @@ class BrightnessController:
                     raw = list(get_monitors())
                     # Mapear monitores DDC/CI a raw_monitors
                     non_wmi_count = 0
-                    for mi_all in self.monitors:
+                    for mi_all in self.ddc_monitors:
                         if not mi_all.is_wmi:
-                            if mi_all.index in indices and mi_all.ddc_ok:
+                            if mi_all.index in indices:
                                 if non_wmi_count < len(raw):
                                     try:
                                         with raw[non_wmi_count] as m:
