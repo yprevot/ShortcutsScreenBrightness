@@ -3,14 +3,11 @@ brightness_ctrl.py - Control de brillo para monitores DDC/CI y pantallas de Lapt
 Comunica con monitores externos a traves de DDC/CI (monitorcontrol) y pantallas internas
 de laptops a traves de la API WMI de Windows (WmiMonitorBrightness).
 
-Multi-monitor hibrido:
-  Al iniciar, descubre TODOS los monitores (Laptop WMI y externos DDC/CI) y los expone
-  como una lista unificada. La UI permite seleccionar uno individual o "Todos".
-
-Estrategia anti-delay (debounce + worker unico):
+Multi-monitor hibrido y autodeteccion en caliente (Hot-Plug):
+  - Descubre TODOS los monitores (Laptop WMI y externos DDC/CI).
+  - Permite rescanear en caliente cuando se conecta o desconecta un monitor.
   - La UI se actualiza INMEDIATAMENTE desde cache.
   - El comando se envia solo despues de DEBOUNCE_MS ms sin mas cambios.
-  - Un unico hilo worker serializa los comandos de hardware.
 """
 import threading
 import json
@@ -236,12 +233,17 @@ class BrightnessController:
         self.ddc_monitors: List[MonitorInfo] = []
         self.target_index: int               = TARGET_ALL
 
-        self._initialize()
+        self.rescan_monitors()
 
-    # -- Inicializacion -------------------------------------------------------
-    def _initialize(self):
-        """Descubre monitores WMI de Laptop y monitores DDC/CI externos."""
+    # -- Redescubrimiento en caliente (Hot-Plug) ------------------------------
+    def rescan_monitors(self) -> bool:
+        """
+        Vuelve a detectar monitores (Laptop WMI y DDC/CI externos).
+        Devuelve True si la lista o estado de monitores controlables cambio.
+        """
         real_names = _get_edid_monitor_names()
+        new_monitors: List[MonitorInfo] = []
+        new_ddc_monitors: List[MonitorInfo] = []
         current_idx = 0
 
         # 1. Detectar pantallas integradas de Laptop via WMI
@@ -253,9 +255,8 @@ class BrightnessController:
             inst_name = w_item["instance"]
 
             info = MonitorInfo(current_idx, display_name, brightness, ddc_ok=True, is_wmi=True, instance_name=inst_name)
-            self.monitors.append(info)
-            self.ddc_monitors.append(info)
-            print(f"[BrightnessCtrl] Monitor {current_idx}: '{display_name}' WMI Laptop OK -- {brightness}%")
+            new_monitors.append(info)
+            new_ddc_monitors.append(info)
             current_idx += 1
 
         # 2. Detectar monitores externos via DDC/CI (monitorcontrol)
@@ -273,7 +274,6 @@ class BrightnessController:
                 try:
                     with monitor as m:
                         brightness = _read_luminance(m)
-                        # Intentar obtener nombre especifico VCP si no habia EDID
                         try:
                             caps = str(m.get_vcp_capabilities())
                             if "model(" in caps.lower():
@@ -286,38 +286,45 @@ class BrightnessController:
                             pass
 
                         info = MonitorInfo(current_idx, display_name, brightness, ddc_ok=True, is_wmi=False)
-                        self.monitors.append(info)
-                        self.ddc_monitors.append(info)
-                        print(f"[BrightnessCtrl] Monitor {current_idx}: '{display_name}' DDC/CI OK -- {brightness}%")
+                        new_monitors.append(info)
+                        new_ddc_monitors.append(info)
 
                 except Exception as e:
                     info = MonitorInfo(current_idx, display_name, 0, ddc_ok=False, is_wmi=False)
-                    self.monitors.append(info)
-                    print(f"[BrightnessCtrl] Monitor {current_idx}: '{display_name}' DDC/CI no responde ({e})")
+                    new_monitors.append(info)
 
                 current_idx += 1
 
-        except ImportError:
-            if not self.ddc_monitors:
-                self._error_msg = "Libreria 'monitorcontrol' no instalada."
-                print(f"[BrightnessCtrl] {self._error_msg}")
         except Exception as e:
-            print(f"[BrightnessCtrl] Error DDC/CI inesperado: {e}")
+            print(f"[BrightnessCtrl] Error DDC/CI en rescan: {e}")
 
-        # 3. Evaluar disponibilidad general
-        if self.ddc_monitors:
-            self._available = True
-            first = self.ddc_monitors[0]
-            self._brightness = first.brightness
-            self._pending    = first.brightness
+        with self._lock:
+            old_sig = [(m.index, m.name, m.ddc_ok) for m in self.ddc_monitors]
+            new_sig = [(m.index, m.name, m.ddc_ok) for m in new_ddc_monitors]
+            changed = (old_sig != new_sig)
 
-            if len(self.ddc_monitors) == 1:
-                self.target_index = first.index
+            self.monitors = new_monitors
+            self.ddc_monitors = new_ddc_monitors
+
+            if self.ddc_monitors:
+                self._available = True
+                valid_indices = [m.index for m in self.ddc_monitors]
+                if self.target_index != TARGET_ALL and self.target_index not in valid_indices:
+                    self.target_index = self.ddc_monitors[0].index
+                    self._brightness = self.ddc_monitors[0].brightness
+                    self._pending = self._brightness
+                elif self.target_index == TARGET_ALL:
+                    self._brightness = self.ddc_monitors[0].brightness
+                    self._pending = self._brightness
             else:
+                self._available = False
                 self.target_index = TARGET_ALL
-        else:
-            self._error_msg = t("ddc_error_generic")
-            print(f"[BrightnessCtrl] {self._error_msg}")
+                self._error_msg = t("ddc_error_generic")
+
+            if changed:
+                print(f"[BrightnessCtrl] Hot-Plug monitores actualizado! Controlables: {len(self.ddc_monitors)}")
+
+            return changed
 
     # -- Propiedades ----------------------------------------------------------
     @property
