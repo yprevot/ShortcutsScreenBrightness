@@ -29,7 +29,7 @@ echo.
 echo  Compilando ShortcutsScreenBrightness.exe...
 echo.
 
-pyinstaller --noconfirm --onedir --windowed --name "ShortcutsScreenBrightness" --icon "assets\icon.ico" --paths "src" --collect-all "customtkinter" --collect-all "darkdetect" --clean src\main.py
+pyinstaller --noconfirm --onedir --windowed --name "ShortcutsScreenBrightness" --icon "assets\icon.ico" --paths "src" --collect-all "customtkinter" --collect-all "darkdetect" --collect-all "win32com" --collect-all "pywin32" --clean src\main.py
 
 if %errorlevel% neq 0 (
     echo.

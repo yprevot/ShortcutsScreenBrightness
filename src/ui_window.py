@@ -229,6 +229,9 @@ class BrightnessWindow:
         else:
             self._build_tk()
 
+        # Iniciar monitoreo en caliente (Hot-Plug) de conexión/desconexión de pantallas
+        self._start_hotplug_check()
+
     def set_tray_app(self, tray_app):
         self.tray_app = tray_app
 
@@ -466,9 +469,7 @@ class BrightnessWindow:
                                        )
         self.exit_btn.pack(side="right")
 
-        # Estado DDC/CI
-        if not self.brightness_ctrl.is_available:
-            self.status_lbl.configure(text=t("status_ddc_error"), text_color=T["error"])
+        # Estado DDC/CI — manejado en la lista de monitores (_build_monitor_list)
 
         self.win.bind("<FocusOut>", self._on_focus_out)
 
@@ -481,10 +482,9 @@ class BrightnessWindow:
         self._monitor_btns.clear()
 
         bc = self.brightness_ctrl
-        ddc = bc.ddc_monitors
-        all_mons = bc.monitors
+        ddc = bc.ddc_monitors  # Solo monitores activos y controlables
 
-        if not all_mons:
+        if not ddc:
             lbl = ctk.CTkLabel(self._monitor_list_fr, text=t("no_monitors_found"),
                                font=ctk.CTkFont("Segoe UI", 11),
                                text_color=T["text_dim"])
@@ -492,7 +492,7 @@ class BrightnessWindow:
             self._monitor_btns.append(lbl)
             return
 
-        # Boton "Todos" (solo si hay mas de 1 monitor DDC/CI)
+        # Boton "Todos" (solo si hay mas de 1 monitor activo)
         if len(ddc) > 1:
             is_active = bc.target_index == TARGET_ALL
             btn = ctk.CTkButton(
@@ -509,23 +509,20 @@ class BrightnessWindow:
             btn.pack(fill="x", pady=1)
             self._monitor_btns.append(btn)
 
-        # Un boton por cada monitor
-        for mi in all_mons:
+        # Un boton por cada monitor activo
+        for mi in ddc:
             is_active = bc.target_index == mi.index
-            ddc_ok = mi.ddc_ok
-            icon = "🟢" if ddc_ok else "🔴"
-            suffix = f":  {mi.brightness}%" if ddc_ok else t("no_ddc_suffix")
+            icon = "🟢"
 
             btn = ctk.CTkButton(
                 self._monitor_list_fr,
-                text=f"{icon}  {mi.name}{suffix}",
+                text=f"{icon}  {mi.name}:  {mi.brightness}%",
                 height=30,
                 fg_color=T["monitor_act"] if is_active else T["bg_surface"],
-                hover_color=T["monitor_sel"] if ddc_ok else T["bg_surface"],
-                text_color=T["accent"] if is_active else (T["text_sec"] if ddc_ok else T["text_dim"]),
+                hover_color=T["monitor_sel"],
+                text_color=T["accent"] if is_active else T["text_sec"],
                 font=ctk.CTkFont("Segoe UI", 11, "bold" if is_active else "normal"),
                 corner_radius=8, anchor="w",
-                state="normal" if ddc_ok else "disabled",
                 command=lambda idx=mi.index: self._select_monitor(idx)
             )
             btn.pack(fill="x", pady=1)
@@ -691,19 +688,48 @@ class BrightnessWindow:
         except Exception:
             pass
 
+    # ── Detección en caliente (Hot-Plug) de pantallas ─────────────────────────
+    def _start_hotplug_check(self):
+        """Inicia el temporizador periódico para detectar conexión/desconexión de monitores."""
+        self.root.after(2500, self._check_hotplug)
+
+    def _check_hotplug(self):
+        """Verifica en segundo plano si cambió la lista de monitores."""
+        def _bg_scan():
+            try:
+                changed = self.brightness_ctrl.rescan_monitors()
+                if changed:
+                    self.root.after(0, self._on_monitors_changed)
+            except Exception as e:
+                print(f"[UI] Error en rescan hotplug: {e}")
+            finally:
+                self.root.after(2500, self._check_hotplug)
+
+        import threading
+        threading.Thread(target=_bg_scan, daemon=True).start()
+
+    def _on_monitors_changed(self):
+        """Callback ejecutado en el hilo principal de la UI cuando cambian los monitores."""
+        brightness = self.brightness_ctrl.current
+        self._update_ui(brightness)
+        if CTK_AVAILABLE:
+            self._build_monitor_list()
+
     # ── Mostrar / Ocultar ────────────────────────────────────────────────────
     def show(self):
         """Muestra la ventana usando cache (instantaneo)."""
-        # Detectar tema del SO al abrir (por si cambio desde la ultima vez)
+        # Detectar tema del SO al abrir
         new_theme = _detect_system_theme()
         if CTK_AVAILABLE and new_theme != ctk.get_appearance_mode().lower():
             ctk.set_appearance_mode(new_theme)
         self.T = _get_theme()
 
+        # Rescanear monitores al abrir por si hubo cambios mientras estaba oculta
+        self.brightness_ctrl.rescan_monitors()
+
         brightness = self.brightness_ctrl.current
         self._update_ui(brightness)
 
-        # Reconstruir lista de monitores por si cambio algo
         if CTK_AVAILABLE:
             self._build_monitor_list()
 
